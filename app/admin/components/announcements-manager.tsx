@@ -1,0 +1,222 @@
+"use client"
+
+import type React from "react"
+
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { loadData, saveData, fileToBase64 } from "@/lib/storage"
+
+interface Announcement {
+  id: string
+  title: string
+  content: string
+  category: string
+  date: string
+  image?: string
+}
+
+export default function AnnouncementsManager() {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [isAdding, setIsAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    title: "",
+    content: "",
+    category: "Opportunity",
+    image: "",
+  })
+
+  useEffect(() => {
+    const saved = loadData<Announcement[]>("sccAnnouncements", [])
+    setAnnouncements(saved)
+  }, [])
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const base64 = await fileToBase64(file)
+      setFormData({ ...formData, image: base64 })
+    }
+  }
+
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      content: "",
+      category: "Opportunity",
+      image: "",
+    })
+    setIsAdding(false)
+    setEditingId(null)
+  }
+
+  const handleSave = () => {
+    if (!formData.title || !formData.content) {
+      alert("Please fill all required fields")
+      return
+    }
+
+    let updated: Announcement[]
+
+    if (editingId) {
+      updated = announcements.map((a) =>
+        a.id === editingId
+          ? {
+              ...a,
+              ...formData,
+            }
+          : a,
+      )
+    } else {
+      const newAnnouncement: Announcement = {
+        id: Date.now().toString(),
+        ...formData,
+        date: new Date().toISOString().split("T")[0],
+      }
+      updated = [...announcements, newAnnouncement]
+    }
+
+    setAnnouncements(updated)
+    saveData("sccAnnouncements", updated)
+    resetForm()
+  }
+
+  const handleEdit = (announcement: Announcement) => {
+    setFormData({
+      title: announcement.title,
+      content: announcement.content,
+      category: announcement.category,
+      image: announcement.image || "",
+    })
+    setEditingId(announcement.id)
+    setIsAdding(true)
+  }
+
+  const handleDelete = (id: string) => {
+    if (confirm("Are you sure you want to delete this announcement?")) {
+      const updated = announcements.filter((a) => a.id !== id)
+      setAnnouncements(updated)
+      saveData("sccAnnouncements", updated)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <Button
+        onClick={() => {
+          setIsAdding(!isAdding)
+          if (isAdding) resetForm()
+        }}
+        className="flex items-center gap-2"
+      >
+        <span className="text-lg">➕</span>
+        {isAdding ? "Cancel" : "Create Announcement"}
+      </Button>
+
+      {isAdding && (
+        <Card className="glass p-6">
+          <h3 className="text-lg font-bold mb-4">{editingId ? "Edit" : "Create New"} Announcement</h3>
+          <div className="space-y-4">
+            <input
+              type="text"
+              placeholder="Title *"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              className="w-full px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <select
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              className="w-full px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option>Opportunity</option>
+              <option>Event</option>
+              <option>Program</option>
+              <option>Tip</option>
+              <option>Story</option>
+            </select>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="w-full px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <textarea
+              placeholder="Content *"
+              value={formData.content}
+              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+              rows={4}
+              className="w-full px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            {formData.image && (
+              <div>
+                <img
+                  src={formData.image || "/placeholder.svg"}
+                  alt="Preview"
+                  className="h-40 w-40 object-cover rounded-lg"
+                />
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2 mt-4">
+            <Button onClick={handleSave}>{editingId ? "Update" : "Save"} Announcement</Button>
+            <Button variant="outline" onClick={resetForm}>
+              Cancel
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      <div className="space-y-4">
+        {announcements.map((announcement) => (
+          <Card key={announcement.id} className="glass p-4 hover:neon-glow transition-all">
+            <div className="flex justify-between items-start mb-2">
+              <div className="flex-1">
+                <div className="flex gap-4">
+                  {announcement.image && (
+                    <img
+                      src={announcement.image || "/placeholder.svg"}
+                      alt={announcement.title}
+                      className="h-20 w-20 object-cover rounded-lg flex-shrink-0"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <h4 className="font-bold">{announcement.title}</h4>
+                    <div className="flex gap-2 mt-1">
+                      <span className="text-xs px-2 py-1 bg-primary/20 text-primary rounded">
+                        {announcement.category}
+                      </span>
+                      <span className="text-xs text-muted">{new Date(announcement.date).toLocaleDateString()}</span>
+                    </div>
+                    <p className="text-sm text-muted mt-2 line-clamp-1">{announcement.content}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => handleEdit(announcement)}
+                  className="p-2 hover:bg-primary/20 rounded transition-colors"
+                >
+                  <span className="text-lg">✏️</span>
+                </button>
+                <button
+                  onClick={() => handleDelete(announcement.id)}
+                  className="p-2 hover:bg-red-500/20 rounded transition-colors"
+                >
+                  <span className="text-lg">🗑️</span>
+                </button>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {announcements.length === 0 && !isAdding && (
+        <Card className="glass p-8 text-center">
+          <p className="text-muted">No announcements yet. Create one to get started.</p>
+        </Card>
+      )}
+    </div>
+  )
+}
