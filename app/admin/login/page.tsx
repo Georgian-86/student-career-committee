@@ -16,7 +16,10 @@ export default function AdminLogin() {
   const router = useRouter()
 
   useEffect(() => {
+    console.log('[Login Page] User state:', user)
+    console.log('[Login Page] Auth loading:', authLoading)
     if (!authLoading && user) {
+      console.log('[Login Page] Redirecting to admin')
       router.push("/admin")
     }
   }, [user, authLoading, router])

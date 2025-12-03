@@ -26,22 +26,26 @@ export function ThemeProvider({
     const savedTheme = localStorage.getItem("theme")
     if (savedTheme) {
       setTheme(savedTheme)
-      document.documentElement.classList.toggle("dark", savedTheme === "dark")
+      document.documentElement.classList.remove("dark", "light")
+      document.documentElement.classList.add(savedTheme)
     } else if (enableSystem) {
       // Detect system preference
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
       const systemTheme = prefersDark ? "dark" : "light"
       setTheme(systemTheme)
-      document.documentElement.classList.toggle("dark", prefersDark)
+      document.documentElement.classList.remove("dark", "light")
+      document.documentElement.classList.add(systemTheme)
     } else {
-      document.documentElement.classList.toggle("dark", defaultTheme === "dark")
+      document.documentElement.classList.remove("dark", "light")
+      document.documentElement.classList.add(defaultTheme)
     }
   }, [defaultTheme, enableSystem])
 
   const toggleTheme = (newTheme: string) => {
     setTheme(newTheme)
     localStorage.setItem("theme", newTheme)
-    document.documentElement.classList.toggle("dark", newTheme === "dark")
+    document.documentElement.classList.remove("dark", "light")
+    document.documentElement.classList.add(newTheme)
   }
 
   if (!mounted) return <>{children}</>

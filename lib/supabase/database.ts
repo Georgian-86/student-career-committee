@@ -7,6 +7,7 @@ const supabase = createBrowserClient(
     auth: {
       persistSession: false,
       autoRefreshToken: false,
+      detectSessionInUrl: false,
     }
   }
 )
@@ -91,7 +92,7 @@ export interface Event {
   date: string
   location: string
   description: string
-  category: string
+  category?: string
   image_url?: string
   created_at?: string
   updated_at?: string
@@ -127,19 +128,34 @@ export async function createEvent(event: Omit<Event, 'id' | 'created_at' | 'upda
 }
 
 export async function updateEvent(id: string, updates: Partial<Event>): Promise<Event | null> {
-  const { data, error } = await supabase
-    .from('events')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
-  
-  if (error) {
+  try {
+    console.log('Updating event with ID:', id)
+    console.log('Update data:', updates)
+    
+    const { data, error } = await supabase
+      .from('events')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) {
+      console.error('Supabase error updating event:', error)
+      console.error('Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      })
+      throw error
+    }
+    
+    console.log('Event updated successfully:', data)
+    return data
+  } catch (error) {
     console.error('Error updating event:', error)
     return null
   }
-  
-  return data
 }
 
 export async function deleteEvent(id: string): Promise<boolean> {

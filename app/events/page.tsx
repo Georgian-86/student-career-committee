@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Calendar, MapPin } from "lucide-react"
 import { ScrollReveal } from "@/components/scroll-reveal"
 import { AnimatedCard } from "@/components/animated-card"
-import { loadData } from "@/lib/storage"
+import { fetchEvents } from "@/lib/supabase/database"
 
 interface Event {
   id: string
@@ -13,23 +14,29 @@ interface Event {
   date: string
   location: string
   description: string
-  image?: string
-  category: string
+  image_url?: string
+  category?: string
 }
 
 export default function Events() {
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState("all")
 
   useEffect(() => {
-    const saved = loadData<Event[]>("sccEvents", [])
-    setEvents(saved)
-    setLoading(false)
+    const loadEvents = async () => {
+      setLoading(true)
+      try {
+        const data = await fetchEvents()
+        setEvents(data || [])
+      } catch (error) {
+        console.error('Error loading events:', error)
+        setEvents([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadEvents()
   }, [])
-
-  const categories = ["all", "Talk", "Workshop", "Hackathon", "Panel"]
-  const filteredEvents = filter === "all" ? events : events.filter((e) => e.category === filter)
 
   if (loading) {
     return (
@@ -43,73 +50,80 @@ export default function Events() {
   }
 
   return (
-    <div className="min-h-screen py-20 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-purple-50 via-white to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-purple-900/20">
       <div className="max-w-7xl mx-auto">
         <ScrollReveal>
-          <h1 className="text-5xl font-bold mb-4 text-balance">Events</h1>
-          <p className="text-xl text-muted mb-12">Explore upcoming events and opportunities</p>
+          <div className="text-center mb-16">
+            <h1 className="text-5xl md:text-6xl font-bold mb-6 text-balance bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              SCC Events
+            </h1>
+            <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto">
+              Discover exciting opportunities, workshops, and talks organized by the Student Career Committee
+            </p>
+          </div>
         </ScrollReveal>
 
-        <div className="flex flex-wrap gap-2 mb-8 animate-slide-in-up animation-delay-1000">
-          {categories.map((cat) => (
-            <Button
-              key={cat}
-              variant={filter === cat ? "default" : "outline"}
-              onClick={() => setFilter(cat)}
-              size="sm"
-              className="hover-scale"
-            >
-              {cat.charAt(0).toUpperCase() + cat.slice(1)}
-            </Button>
-          ))}
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map((event, idx) => (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {events.map((event, idx) => (
             <AnimatedCard
               key={event.id}
               delay={idx * 100}
-              className="glass overflow-hidden rounded-lg group h-full flex flex-col"
+              className="glass overflow-hidden rounded-2xl group h-full flex flex-col shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md"
               variant="glow"
             >
-              <div className="aspect-video relative overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20">
+              <div className="aspect-video relative overflow-hidden bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30">
                 <img
-                  src={event.image || "/placeholder.svg?height=300&width=400&query=event"}
+                  src={event.image_url || "/placeholder.svg?height=300&width=400&query=event"}
                   alt={event.title}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                 />
+                <div className="absolute top-4 right-4">
+                  <span className="px-3 py-1 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm text-purple-600 dark:text-purple-400 text-xs font-semibold rounded-full shadow-lg">
+                    {event.category || 'Event'}
+                  </span>
+                </div>
               </div>
               <div className="p-6 flex flex-col flex-grow">
-                <div className="inline-block mb-3 px-2 py-1 text-xs bg-primary/20 text-primary rounded-full w-fit">
-                  {event.category}
-                </div>
-                <h3 className="text-lg font-bold mb-3 group-hover:text-primary transition-colors line-clamp-2">
+                <h3 className="text-xl font-bold mb-3 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors line-clamp-2">
                   {event.title}
                 </h3>
-                <p className="text-sm text-muted mb-4 line-clamp-2">{event.description}</p>
+                <p className="text-gray-600 dark:text-gray-300 mb-6 line-clamp-3 flex-grow">
+                  {event.description}
+                </p>
 
-                <div className="space-y-2 mb-4 mt-auto">
-                  <div className="flex items-center gap-2 text-sm text-muted group-hover:text-foreground transition-colors">
-                    <Calendar className="w-4 h-4" />
-                    {new Date(event.date).toLocaleDateString()}
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                    <Calendar className="w-5 h-5" />
+                    <span className="font-medium">{new Date(event.date).toLocaleDateString('en-US', { 
+                      weekday: 'short', 
+                      year: 'numeric', 
+                      month: 'short', 
+                      day: 'numeric' 
+                    })}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-muted group-hover:text-foreground transition-colors">
-                    <MapPin className="w-4 h-4" />
-                    {event.location}
+                  <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                    <MapPin className="w-5 h-5" />
+                    <span className="font-medium">{event.location}</span>
                   </div>
                 </div>
 
-                <Button className="w-full hover:neon-glow" size="sm">
-                  Learn More
+                <Button className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105" size="sm">
+                  Register Now
                 </Button>
               </div>
             </AnimatedCard>
           ))}
         </div>
 
-        {filteredEvents.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-muted">No events in this category. Check back soon!</p>
+        {events.length === 0 && (
+          <div className="text-center py-20">
+            <div className="max-w-md mx-auto">
+              <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Calendar className="w-10 h-10 text-gray-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">No Events Yet</h3>
+              <p className="text-gray-600 dark:text-gray-300">No events available. Check back soon for exciting opportunities!</p>
+            </div>
           </div>
         )}
       </div>

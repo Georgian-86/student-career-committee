@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "./auth-context"
+import { useAuth } from "@/components/AuthProvider"
+import { supabase } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import TeamManager from "./components/team-manager"
 import EventsManager from "./components/events-manager"
@@ -13,9 +14,18 @@ import ProjectsManager from "./components/projects-manager"
 import AboutManager from "./components/about-manager"
 
 export default function AdminDashboard() {
-  const { user, logout, loading } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("team")
+  const [isRedirecting, setIsRedirecting] = useState(false)
+
+  // Handle redirects in useEffect to prevent render phase updates
+  useEffect(() => {
+    if (!loading && !user) {
+      setIsRedirecting(true)
+      router.push("/login")
+    }
+  }, [user, loading, router])
 
   if (loading) {
     return (
@@ -27,14 +37,13 @@ export default function AdminDashboard() {
     )
   }
 
-  if (!user) {
-    router.push("/admin/login")
+  if (!user || isRedirecting) {
     return null
   }
 
   const handleLogout = async () => {
-    await logout()
-    router.push("/admin/login")
+    await supabase.auth.signOut()
+    router.push("/login")
   }
 
   const tabs = [

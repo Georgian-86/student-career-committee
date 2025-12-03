@@ -5,72 +5,111 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { loadData, saveData, fileToBase64 } from "@/lib/storage"
-
-interface AboutItem {
-  id: string
-  title: string
-  description: string
-  type: "section" | "item"
-  image?: string
-}
+import { fileToBase64 } from "@/lib/storage"
+import { 
+  fetchAboutItems, 
+  createAboutItem, 
+  updateAboutItem, 
+  deleteAboutItem,
+  type AboutItem 
+} from "@/lib/supabase/database"
+import { supabase } from "@/lib/supabase/client"
 
 export default function AboutManager() {
   const [items, setItems] = useState<AboutItem[]>([])
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    type: "section" as const,
-    image: "",
+    type: "section" as "section" | "item",
+    image_file: null as File | null,
   })
 
   useEffect(() => {
-    const saved = loadData<AboutItem[]>("sccAbout", [])
-    setItems(saved)
+    const loadItems = async () => {
+      setLoading(true)
+      const data = await fetchAboutItems()
+      setItems(data)
+      setLoading(false)
+    }
+    loadItems()
   }, [])
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const base64 = await fileToBase64(file)
-      setFormData({ ...formData, image: base64 })
+      setFormData(prev => ({ ...prev, image_file: file }))
     }
+  }
+
+  const uploadImage = async (): Promise<string | null> => {
+    if (!formData.image_file) return null
+
+    const fileExt = formData.image_file.name.split('.').pop()
+    const fileName = `${Math.random()}.${fileExt}`
+    const filePath = `about/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('images')
+      .upload(filePath, formData.image_file)
+
+    if (uploadError) throw uploadError
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(filePath)
+
+    return publicUrl
   }
 
   const resetForm = () => {
     setFormData({
       title: "",
       description: "",
-      type: "section",
-      image: "",
+      type: "section" as "section" | "item",
+      image_file: null,
     })
     setIsAdding(false)
     setEditingId(null)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.title || !formData.description) {
       alert("Please fill all required fields")
       return
     }
 
-    let updated: AboutItem[]
-
-    if (editingId) {
-      updated = items.map((i) => (i.id === editingId ? { ...i, ...formData } : i))
-    } else {
-      const newItem: AboutItem = {
-        id: Date.now().toString(),
-        ...formData,
+    try {
+      let imageUrl = null
+      if (formData.image_file) {
+        imageUrl = await uploadImage()
+      } else if (editingId) {
+        const existingItem = items.find(i => i.id === editingId)
+        imageUrl = existingItem?.image_url || null
       }
-      updated = [...items, newItem]
-    }
 
-    setItems(updated)
-    saveData("sccAbout", updated)
-    resetForm()
+      const itemData = {
+        title: formData.title,
+        description: formData.description,
+        type: formData.type,
+        ...(imageUrl && { image_url: imageUrl }),
+      }
+
+      if (editingId) {
+        await updateAboutItem(editingId, itemData)
+      } else {
+        await createAboutItem(itemData)
+      }
+
+      const data = await fetchAboutItems()
+      setItems(data)
+      resetForm()
+    } catch (error) {
+      console.error('Error saving about item:', error)
+      alert('Error saving about item. Please check console for details.')
+    }
   }
 
   const handleEdit = (item: AboutItem) => {
@@ -78,18 +117,40 @@ export default function AboutManager() {
       title: item.title,
       description: item.description,
       type: item.type,
-      image: item.image || "",
+      image_file: null,
     })
     setEditingId(item.id)
     setIsAdding(true)
   }
 
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure?")) {
-      const updated = items.filter((i) => i.id !== id)
-      setItems(updated)
-      saveData("sccAbout", updated)
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure?")) return
+
+    try {
+      const itemToDelete = items.find(i => i.id === id)
+      
+      if (itemToDelete?.image_url) {
+        const filePath = itemToDelete.image_url.split('/').pop()
+        if (filePath) {
+          const { error: deleteError } = await supabase.storage
+            .from('images')
+            .remove([`about/${filePath}`])
+          
+          if (deleteError) console.error('Error deleting image:', deleteError)
+        }
+      }
+
+      await deleteAboutItem(id)
+      const data = await fetchAboutItems()
+      setItems(data)
+    } catch (error) {
+      console.error('Error deleting about item:', error)
+      alert('Error deleting about item. Please check console for details.')
     }
+  }
+
+  if (loading) {
+    return <div className="text-center py-12">Loading about content...</div>
   }
 
   return (
@@ -137,13 +198,9 @@ export default function AboutManager() {
               rows={4}
               className="px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary md:col-span-2"
             />
-            {formData.image && (
+            {formData.image_file && (
               <div className="md:col-span-2">
-                <img
-                  src={formData.image || "/placeholder.svg"}
-                  alt="Preview"
-                  className="h-32 w-32 object-cover rounded-lg"
-                />
+                <p className="text-sm text-muted mb-2">Image selected: {formData.image_file.name}</p>
               </div>
             )}
           </div>
@@ -160,9 +217,9 @@ export default function AboutManager() {
         {items.map((item) => (
           <Card key={item.id} className="glass p-4">
             <div className="flex justify-between items-start gap-4">
-              {item.image && (
+              {item.image_url && (
                 <img
-                  src={item.image || "/placeholder.svg"}
+                  src={item.image_url}
                   alt={item.title}
                   className="h-24 w-24 object-cover rounded-lg flex-shrink-0"
                 />

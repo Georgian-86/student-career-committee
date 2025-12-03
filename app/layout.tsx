@@ -1,13 +1,22 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Inter, Roboto_Mono } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import Navigation from "@/components/navigation"
+import { SCCAnimeNavBar } from "@/components/ui/scc-anime-navbar"
 import Footer from "@/components/footer"
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+})
+
+const robotoMono = Roboto_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-roboto-mono',
+})
 
 export const metadata: Metadata = {
   title: "SCC - Student Career Committee | SCSE LPU",
@@ -40,10 +49,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${_geist.className} font-sans antialiased bg-background text-foreground`}>
+      <body className={`${inter.variable} ${robotoMono.variable} font-sans antialiased bg-background text-foreground`}>
         <ThemeProvider>
-          <Navigation />
-          <main>{children}</main>
+          <SCCAnimeNavBar />
+          <main className="pt-24">{children}</main>
           <Footer />
         </ThemeProvider>
       </body>

@@ -417,6 +417,18 @@
     animation-delay: 0.4s;
   }
 
+  @keyframes shine {
+    0% {
+      transform: translateX(-100%);
+    }
+    50% {
+      transform: translateX(100%);
+    }
+    100% {
+      transform: translateX(-100%);
+    }
+  }
+
   .stagger-5 {
     animation-delay: 0.5s;
   }

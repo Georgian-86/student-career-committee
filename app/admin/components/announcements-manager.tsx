@@ -5,39 +5,63 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { loadData, saveData, fileToBase64 } from "@/lib/storage"
-
-interface Announcement {
-  id: string
-  title: string
-  content: string
-  category: string
-  date: string
-  image?: string
-}
+import { fileToBase64 } from "@/lib/storage"
+import { 
+  fetchAnnouncements, 
+  createAnnouncement, 
+  updateAnnouncement, 
+  deleteAnnouncement,
+  type Announcement 
+} from "@/lib/supabase/database"
+import { supabase } from "@/lib/supabase/client"
 
 export default function AnnouncementsManager() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [formData, setFormData] = useState({
     title: "",
     content: "",
     category: "Opportunity",
-    image: "",
+    image_file: null as File | null,
   })
 
   useEffect(() => {
-    const saved = loadData<Announcement[]>("sccAnnouncements", [])
-    setAnnouncements(saved)
+    const loadAnnouncements = async () => {
+      setLoading(true)
+      const data = await fetchAnnouncements()
+      setAnnouncements(data)
+      setLoading(false)
+    }
+    loadAnnouncements()
   }, [])
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const base64 = await fileToBase64(file)
-      setFormData({ ...formData, image: base64 })
+      setFormData(prev => ({ ...prev, image_file: file }))
     }
+  }
+
+  const uploadImage = async (): Promise<string | null> => {
+    if (!formData.image_file) return null
+
+    const fileExt = formData.image_file.name.split('.').pop()
+    const fileName = `${Math.random()}.${fileExt}`
+    const filePath = `announcements/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('images')
+      .upload(filePath, formData.image_file)
+
+    if (uploadError) throw uploadError
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(filePath)
+
+    return publicUrl
   }
 
   const resetForm = () => {
@@ -45,41 +69,48 @@ export default function AnnouncementsManager() {
       title: "",
       content: "",
       category: "Opportunity",
-      image: "",
+      image_file: null,
     })
     setIsAdding(false)
     setEditingId(null)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.title || !formData.content) {
       alert("Please fill all required fields")
       return
     }
 
-    let updated: Announcement[]
-
-    if (editingId) {
-      updated = announcements.map((a) =>
-        a.id === editingId
-          ? {
-              ...a,
-              ...formData,
-            }
-          : a,
-      )
-    } else {
-      const newAnnouncement: Announcement = {
-        id: Date.now().toString(),
-        ...formData,
-        date: new Date().toISOString().split("T")[0],
+    try {
+      let imageUrl = null
+      if (formData.image_file) {
+        imageUrl = await uploadImage()
+      } else if (editingId) {
+        const existingAnnouncement = announcements.find(a => a.id === editingId)
+        imageUrl = existingAnnouncement?.image_url || null
       }
-      updated = [...announcements, newAnnouncement]
-    }
 
-    setAnnouncements(updated)
-    saveData("sccAnnouncements", updated)
-    resetForm()
+      const announcementData = {
+        title: formData.title,
+        content: formData.content,
+        category: formData.category,
+        date: new Date().toLocaleDateString(),
+        ...(imageUrl && { image_url: imageUrl }),
+      }
+
+      if (editingId) {
+        await updateAnnouncement(editingId, announcementData)
+      } else {
+        await createAnnouncement(announcementData)
+      }
+
+      const data = await fetchAnnouncements()
+      setAnnouncements(data)
+      resetForm()
+    } catch (error) {
+      console.error('Error saving announcement:', error)
+      alert('Error saving announcement. Please check console for details.')
+    }
   }
 
   const handleEdit = (announcement: Announcement) => {
@@ -87,18 +118,40 @@ export default function AnnouncementsManager() {
       title: announcement.title,
       content: announcement.content,
       category: announcement.category,
-      image: announcement.image || "",
+      image_file: null,
     })
     setEditingId(announcement.id)
     setIsAdding(true)
   }
 
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this announcement?")) {
-      const updated = announcements.filter((a) => a.id !== id)
-      setAnnouncements(updated)
-      saveData("sccAnnouncements", updated)
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this announcement?")) return
+
+    try {
+      const announcementToDelete = announcements.find(a => a.id === id)
+      
+      if (announcementToDelete?.image_url) {
+        const filePath = announcementToDelete.image_url.split('/').pop()
+        if (filePath) {
+          const { error: deleteError } = await supabase.storage
+            .from('images')
+            .remove([`announcements/${filePath}`])
+          
+          if (deleteError) console.error('Error deleting image:', deleteError)
+        }
+      }
+
+      await deleteAnnouncement(id)
+      const data = await fetchAnnouncements()
+      setAnnouncements(data)
+    } catch (error) {
+      console.error('Error deleting announcement:', error)
+      alert('Error deleting announcement. Please check console for details.')
     }
+  }
+
+  if (loading) {
+    return <div className="text-center py-12">Loading announcements...</div>
   }
 
   return (
@@ -149,13 +202,9 @@ export default function AnnouncementsManager() {
               rows={4}
               className="w-full px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            {formData.image && (
+            {formData.image_file && (
               <div>
-                <img
-                  src={formData.image || "/placeholder.svg"}
-                  alt="Preview"
-                  className="h-40 w-40 object-cover rounded-lg"
-                />
+                <p className="text-sm text-muted mb-2">Image selected: {formData.image_file.name}</p>
               </div>
             )}
           </div>
@@ -174,9 +223,9 @@ export default function AnnouncementsManager() {
             <div className="flex justify-between items-start mb-2">
               <div className="flex-1">
                 <div className="flex gap-4">
-                  {announcement.image && (
+                  {announcement.image_url && (
                     <img
-                      src={announcement.image || "/placeholder.svg"}
+                      src={announcement.image_url}
                       alt={announcement.title}
                       className="h-20 w-20 object-cover rounded-lg flex-shrink-0"
                     />

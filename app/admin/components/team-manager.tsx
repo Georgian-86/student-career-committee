@@ -1,27 +1,37 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { loadData, saveData, fileToBase64 } from "@/lib/storage"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { fileToBase64 } from "@/lib/storage"
+import { ImageCrop } from "@/components/image-crop"
+import { 
+  fetchTeamMembers, 
+  createTeamMember, 
+  updateTeamMember, 
+  deleteTeamMember,
+  type TeamMember 
+} from "@/lib/supabase/database"
+import { supabase } from "@/lib/supabase/client"
 
-interface TeamMember {
-  id: string
-  name: string
-  role: string
-  department: string
-  email: string
-  linkedin?: string
-  image?: string
-  description?: string
-}
+// SCC Structure departments from about page
+const sccDepartments = [
+  "Leadership Panel",
+  "Operations Team", 
+  "Outreach & Industry Relations",
+  "Content & Media Team",
+  "Technical Team",
+  "Program & Event Management"
+]
 
 export default function TeamManager() {
   const [members, setMembers] = useState<TeamMember[]>([])
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [showCropDialog, setShowCropDialog] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: "",
     role: "",
@@ -29,20 +39,68 @@ export default function TeamManager() {
     email: "",
     linkedin: "",
     description: "",
-    image: "",
+    image_file: null as File | null,
   })
 
   useEffect(() => {
-    const saved = loadData<TeamMember[]>("sccTeamMembers", [])
-    setMembers(saved)
+    const loadMembers = async () => {
+      setLoading(true)
+      const data = await fetchTeamMembers()
+      setMembers(data)
+      setLoading(false)
+    }
+    loadMembers()
   }, [])
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const uploadImage = async (): Promise<string | null> => {
+    if (!formData.image_file) return null
+
+    const fileExt = formData.image_file.name.split('.').pop()
+    const fileName = `${Math.random()}.${fileExt}`
+    const filePath = `team/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('images')
+      .upload(filePath, formData.image_file)
+
+    if (uploadError) throw uploadError
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(filePath)
+
+    return publicUrl
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const base64 = await fileToBase64(file)
-      setFormData({ ...formData, image: base64 })
+      const reader = new FileReader()
+      reader.onload = () => {
+        setImagePreview(reader.result as string)
+        setShowCropDialog(true)
+      }
+      reader.readAsDataURL(file)
     }
+  }
+
+  const handleCropComplete = (croppedImage: string) => {
+    // Convert cropped image back to file
+    fetch(croppedImage)
+      .then(res => res.blob())
+      .then(blob => {
+        // Determine the file type from the blob
+        const fileType = blob.type || 'image/jpeg'
+        const extension = fileType.split('/')[1] || 'jpg'
+        const file = new File([blob], `cropped-image.${extension}`, { type: fileType })
+        setFormData(prev => ({ ...prev, image_file: file }))
+        setImagePreview(croppedImage)
+      })
+      .catch(error => {
+        console.error('Error converting cropped image:', error)
+        // If conversion fails, keep the original image
+        setImagePreview(imagePreview)
+      })
   }
 
   const resetForm = () => {
@@ -53,40 +111,53 @@ export default function TeamManager() {
       email: "",
       linkedin: "",
       description: "",
-      image: "",
+      image_file: null,
     })
+    setImagePreview(null)
     setIsAdding(false)
     setEditingId(null)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.role || !formData.department || !formData.email) {
       alert("Please fill all required fields")
       return
     }
 
-    let updated: TeamMember[]
-
-    if (editingId) {
-      updated = members.map((m) =>
-        m.id === editingId
-          ? {
-              ...m,
-              ...formData,
-            }
-          : m,
-      )
-    } else {
-      const newMember: TeamMember = {
-        id: Date.now().toString(),
-        ...formData,
+    try {
+      let imageUrl = null
+      if (formData.image_file) {
+        imageUrl = await uploadImage()
+      } else if (editingId) {
+        // Keep existing image if editing and no new image is uploaded
+        const existingMember = members.find(m => m.id === editingId)
+        imageUrl = existingMember?.image_url || null
       }
-      updated = [...members, newMember]
-    }
 
-    setMembers(updated)
-    saveData("sccTeamMembers", updated)
-    resetForm()
+      const memberData = {
+        name: formData.name,
+        role: formData.role,
+        department: formData.department,
+        email: formData.email,
+        linkedin: formData.linkedin || undefined,
+        description: formData.description || undefined,
+        ...(imageUrl && { image_url: imageUrl }),
+      }
+
+      if (editingId) {
+        await updateTeamMember(editingId, memberData)
+      } else {
+        await createTeamMember(memberData)
+      }
+
+      // Refresh the team members list
+      const data = await fetchTeamMembers()
+      setMembers(data)
+      resetForm()
+    } catch (error) {
+      console.error('Error saving team member:', error)
+      alert('Error saving team member. Please check console for details.')
+    }
   }
 
   const handleEdit = (member: TeamMember) => {
@@ -97,18 +168,45 @@ export default function TeamManager() {
       email: member.email,
       linkedin: member.linkedin || "",
       description: member.description || "",
-      image: member.image || "",
+      image_file: null,
     })
     setEditingId(member.id)
     setIsAdding(true)
   }
 
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this member?")) {
-      const updated = members.filter((m) => m.id !== id)
-      setMembers(updated)
-      saveData("sccTeamMembers", updated)
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this member?")) return
+
+    try {
+      // First get the member to check for an image
+      const memberToDelete = members.find(m => m.id === id)
+      
+      // If there's an image, delete it from storage
+      if (memberToDelete?.image_url) {
+        const filePath = memberToDelete.image_url.split('/').pop()
+        if (filePath) {
+          const { error: deleteError } = await supabase.storage
+            .from('images')
+            .remove([`team/${filePath}`])
+          
+          if (deleteError) console.error('Error deleting image:', deleteError)
+        }
+      }
+
+      // Delete the member from database
+      await deleteTeamMember(id)
+
+      // Refresh the list
+      const data = await fetchTeamMembers()
+      setMembers(data)
+    } catch (error) {
+      console.error('Error deleting team member:', error)
+      alert('Error deleting team member. Please check console for details.')
     }
+  }
+
+  if (loading) {
+    return <div className="text-center py-12">Loading team members...</div>
   }
 
   return (
@@ -134,6 +232,7 @@ export default function TeamManager() {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              required
             />
             <input
               type="text"
@@ -141,20 +240,32 @@ export default function TeamManager() {
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value })}
               className="px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              required
             />
-            <input
-              type="text"
-              placeholder="Department *"
-              value={formData.department}
-              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-              className="px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+            <div>
+              <Select
+                value={formData.department}
+                onValueChange={(value) => setFormData({ ...formData, department: value })}
+              >
+                <SelectTrigger className="px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary shadow-sm">
+                  <SelectValue placeholder="Select a department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sccDepartments.map((dept) => (
+                    <SelectItem key={dept} value={dept}>
+                      {dept}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <input
               type="email"
               placeholder="Email *"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              required
             />
             <input
               type="text"
@@ -169,6 +280,16 @@ export default function TeamManager() {
               onChange={handleImageChange}
               className="px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             />
+            {imagePreview && (
+              <div className="md:col-span-2">
+                <p className="text-sm font-medium mb-2">Image Preview:</p>
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="h-32 w-32 object-cover rounded-lg border-2 border-border"
+                />
+              </div>
+            )}
             <textarea
               placeholder="Description"
               value={formData.description}
@@ -176,21 +297,14 @@ export default function TeamManager() {
               rows={3}
               className="px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary md:col-span-2"
             />
-            {formData.image && (
-              <div className="md:col-span-2">
-                <img
-                  src={formData.image || "/placeholder.svg"}
-                  alt="Preview"
-                  className="h-32 w-32 object-cover rounded-lg"
-                />
-              </div>
-            )}
-          </div>
-          <div className="flex gap-2 mt-4">
-            <Button onClick={handleSave}>{editingId ? "Update" : "Save"} Member</Button>
-            <Button variant="outline" onClick={resetForm}>
-              Cancel
-            </Button>
+            <div className="flex gap-2 mt-4 md:col-span-2">
+              <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
+                {editingId ? "Update" : "Save"} Member
+              </Button>
+              <Button variant="outline" onClick={resetForm}>
+                Cancel
+              </Button>
+            </div>
           </div>
         </Card>
       )}
@@ -199,9 +313,9 @@ export default function TeamManager() {
         {members.map((member) => (
           <Card key={member.id} className="glass p-4">
             <div className="flex gap-4">
-              {member.image && (
+              {member.image_url && (
                 <img
-                  src={member.image || "/placeholder.svg"}
+                  src={member.image_url}
                   alt={member.name}
                   className="h-24 w-24 object-cover rounded-lg flex-shrink-0"
                 />
@@ -237,6 +351,13 @@ export default function TeamManager() {
           <p className="text-muted">No team members yet. Add one to get started.</p>
         </Card>
       )}
+
+      <ImageCrop
+        imageSrc={imagePreview || ''}
+        onCropComplete={handleCropComplete}
+        onClose={() => setShowCropDialog(false)}
+        open={showCropDialog}
+      />
     </div>
   )
 }
