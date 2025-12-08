@@ -43,7 +43,7 @@ export function ImageCrop({ imageSrc, onCropComplete, onClose, open }: ImageCrop
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Crop Profile Picture</DialogTitle>
+          <DialogTitle>Crop Event Cover Photo</DialogTitle>
         </DialogHeader>
         
         <div className="relative h-96 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
@@ -51,7 +51,7 @@ export function ImageCrop({ imageSrc, onCropComplete, onClose, open }: ImageCrop
             image={imageSrc}
             crop={crop}
             zoom={zoom}
-            aspect={1}
+            aspect={16/9}
             onCropChange={onCropChange}
             onCropComplete={onCropCompleteHandler}
             onZoomChange={onZoomChange}
