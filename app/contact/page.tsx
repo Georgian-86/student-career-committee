@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Mail, Phone, MapPin } from "lucide-react"
 import { saveData, loadData } from "@/lib/storage"
+import { supabase } from "@/lib/supabase/client"
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -16,6 +17,7 @@ export default function Contact() {
     message: "",
   })
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
@@ -26,18 +28,46 @@ export default function Contact() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const message = {
-      id: Date.now().toString(),
-      ...formData,
-      date: new Date().toISOString().split("T")[0],
+    setLoading(true)
+    
+    try {
+      // Save to Supabase first
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({
+          name: formData.name,
+          email: formData.email,
+          subject: formData.subject,
+          message: formData.message,
+          is_read: false
+        })
+        .select()
+        .single()
+      
+      if (error) {
+        console.error('Error saving to Supabase:', error)
+        // Fallback to localStorage if Supabase fails
+        const message = {
+          id: Date.now().toString(),
+          ...formData,
+          date: new Date().toISOString().split("T")[0],
+        }
+        
+        const existing = loadData("sccContactMessages", [])
+        saveData("sccContactMessages", [...existing, message])
+      } else {
+        console.log('Message saved to Supabase:', data)
+      }
+      
+      setSubmitted(true)
+      setFormData({ name: "", email: "", subject: "", message: "" })
+      setTimeout(() => setSubmitted(false), 3000)
+    } catch (error) {
+      console.error('Error submitting form:', error)
+      alert('Error submitting message. Please try again.')
+    } finally {
+      setLoading(false)
     }
-
-    const existing = loadData("sccContactMessages", [])
-    saveData("sccContactMessages", [...existing, message])
-
-    setSubmitted(true)
-    setFormData({ name: "", email: "", subject: "", message: "" })
-    setTimeout(() => setSubmitted(false), 3000)
   }
 
   return (
@@ -159,8 +189,8 @@ export default function Contact() {
                   />
                 </div>
 
-                <Button type="submit" className="w-full">
-                  Send Message
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Sending..." : "Send Message"}
                 </Button>
 
                 {submitted && (

@@ -94,6 +94,13 @@ export interface Event {
   description: string
   category?: string
   image_url?: string
+  is_live?: boolean
+  gallery_images?: string[]
+  attendees?: number
+  outcome?: string
+  guest_feedback?: string
+  student_feedback?: string
+  guests?: string[]
   created_at?: string
   updated_at?: string
 }
@@ -177,10 +184,13 @@ export interface Project {
   id: string
   title: string
   description: string
-  technologies: string
-  github: string
-  demo: string
+  content?: string
+  technologies: string[]  // Changed from string to string[]
+  github_url?: string     // Changed from github to github_url
+  project_url?: string    // Added project_url
+  demo?: string
   image_url?: string
+  is_featured?: boolean   // Added is_featured
   created_at?: string
   updated_at?: string
 }
@@ -200,18 +210,23 @@ export async function fetchProjects(): Promise<Project[]> {
 }
 
 export async function createProject(project: Omit<Project, 'id' | 'created_at' | 'updated_at'>): Promise<Project | null> {
-  const { data, error } = await supabase
-    .from('projects')
-    .insert(project)
-    .select()
-    .single()
-  
-  if (error) {
-    console.error('Error creating project:', error)
-    return null
+  try {
+    const { data, error } = await supabase
+      .from('projects')
+      .insert(project)
+      .select()
+      .single()
+    
+    if (error) {
+      console.error('Error creating project:', error)
+      throw new Error(`Database error: ${error.message}`)
+    }
+    
+    return data
+  } catch (error) {
+    console.error('Error in createProject:', error)
+    throw error
   }
-  
-  return data
 }
 
 export async function updateProject(id: string, updates: Partial<Project>): Promise<Project | null> {

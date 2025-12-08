@@ -23,8 +23,9 @@ export default function ProjectsManager() {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    technologies: "",
-    github: "",
+    technologies: "",  // Keep as string for input, will convert to array
+    github_url: "",      // Changed from github
+    project_url: "",     // Added project_url
     demo: "",
     image_file: null as File | null,
   })
@@ -71,7 +72,8 @@ export default function ProjectsManager() {
       title: "",
       description: "",
       technologies: "",
-      github: "",
+      github_url: "",
+      project_url: "",
       demo: "",
       image_file: null,
     })
@@ -97,8 +99,11 @@ export default function ProjectsManager() {
       const projectData = {
         title: formData.title,
         description: formData.description,
-        technologies: formData.technologies,
-        github: formData.github,
+        technologies: formData.technologies 
+          ? formData.technologies.split(',').map(t => t.trim()).filter(t => t)
+          : [], // Ensure empty array when no technologies
+        github_url: formData.github_url,
+        project_url: formData.project_url,
         demo: formData.demo,
         ...(imageUrl && { image_url: imageUrl }),
       }
@@ -114,7 +119,8 @@ export default function ProjectsManager() {
       resetForm()
     } catch (error) {
       console.error('Error saving project:', error)
-      alert('Error saving project. Please check console for details.')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`Error saving project: ${errorMessage}`)
     }
   }
 
@@ -122,9 +128,10 @@ export default function ProjectsManager() {
     setFormData({
       title: project.title,
       description: project.description,
-      technologies: project.technologies,
-      github: project.github,
-      demo: project.demo,
+      technologies: Array.isArray(project.technologies) ? project.technologies.join(', ') : '', // Convert array to string
+      github_url: project.github_url || '',
+      project_url: project.project_url || '',
+      demo: project.demo || '',
       image_file: null,
     })
     setEditingId(project.id)
@@ -210,8 +217,15 @@ export default function ProjectsManager() {
             <input
               type="url"
               placeholder="GitHub Link"
-              value={formData.github}
-              onChange={(e) => setFormData({ ...formData, github: e.target.value })}
+              value={formData.github_url}
+              onChange={(e) => setFormData({ ...formData, github_url: e.target.value })}
+              className="px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm transition-all duration-200"
+            />
+            <input
+              type="url"
+              placeholder="Project URL"
+              value={formData.project_url}
+              onChange={(e) => setFormData({ ...formData, project_url: e.target.value })}
               className="px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm transition-all duration-200"
             />
             <input
@@ -263,9 +277,9 @@ export default function ProjectsManager() {
               <div className="flex-1">
                 <h4 className="font-bold">{project.title}</h4>
                 <p className="text-sm text-muted mt-2">{project.description}</p>
-                {project.technologies && typeof project.technologies === 'string' && (
+                {project.technologies && Array.isArray(project.technologies) && (
                   <div className="flex flex-wrap gap-2 mt-3">
-                    {project.technologies.split(",").map((tech, i) => (
+                    {project.technologies.map((tech: string, i: number) => (
                       <span key={i} className="text-xs px-2 py-1 bg-primary/20 text-primary rounded">
                         {tech.trim()}
                       </span>

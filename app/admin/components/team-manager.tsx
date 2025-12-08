@@ -30,6 +30,7 @@ export default function TeamManager() {
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [showCropDialog, setShowCropDialog] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [formData, setFormData] = useState({
@@ -124,6 +125,7 @@ export default function TeamManager() {
       return
     }
 
+    setIsSaving(true)
     try {
       let imageUrl = null
       if (formData.image_file) {
@@ -157,6 +159,8 @@ export default function TeamManager() {
     } catch (error) {
       console.error('Error saving team member:', error)
       alert('Error saving team member. Please check console for details.')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -298,8 +302,15 @@ export default function TeamManager() {
               className="px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary md:col-span-2"
             />
             <div className="flex gap-2 mt-4 md:col-span-2">
-              <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
-                {editingId ? "Update" : "Save"} Member
+              <Button onClick={handleSave} disabled={isSaving} className="bg-primary hover:bg-primary/90">
+                {isSaving ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    {editingId ? "Updating..." : "Saving..."}
+                  </div>
+                ) : (
+                  `${editingId ? "Update" : "Save"} Member`
+                )}
               </Button>
               <Button variant="outline" onClick={resetForm}>
                 Cancel

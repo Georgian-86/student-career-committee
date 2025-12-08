@@ -6,6 +6,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { fileToBase64 } from "@/lib/storage"
+import { ImageCrop } from "@/components/image-crop"
 import { 
   fetchAnnouncements, 
   createAnnouncement, 
@@ -20,6 +21,9 @@ export default function AnnouncementsManager() {
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [showCropDialog, setShowCropDialog] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     title: "",
     content: "",
@@ -40,8 +44,28 @@ export default function AnnouncementsManager() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      setFormData(prev => ({ ...prev, image_file: file }))
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+        setShowCropDialog(true)
+      }
+      reader.readAsDataURL(file)
     }
+  }
+
+  const handleCropComplete = (croppedImage: string) => {
+    // Convert cropped image back to file
+    fetch(croppedImage)
+      .then(res => res.blob())
+      .then(blob => {
+        // Determine the file type from the blob
+        const fileType = blob.type || 'image/jpeg'
+        const extension = fileType.split('/')[1] || 'jpg'
+        const file = new File([blob], `cropped-image.${extension}`, { type: fileType })
+        setFormData(prev => ({ ...prev, image_file: file }))
+        setImagePreview(croppedImage)
+        setShowCropDialog(false)
+      })
   }
 
   const uploadImage = async (): Promise<string | null> => {
@@ -81,6 +105,7 @@ export default function AnnouncementsManager() {
       return
     }
 
+    setIsSaving(true)
     try {
       let imageUrl = null
       if (formData.image_file) {
@@ -110,6 +135,8 @@ export default function AnnouncementsManager() {
     } catch (error) {
       console.error('Error saving announcement:', error)
       alert('Error saving announcement. Please check console for details.')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -209,7 +236,16 @@ export default function AnnouncementsManager() {
             )}
           </div>
           <div className="flex gap-2 mt-4">
-            <Button onClick={handleSave}>{editingId ? "Update" : "Save"} Announcement</Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  {editingId ? "Updating..." : "Saving..."}
+                </div>
+              ) : (
+                `${editingId ? "Update" : "Save"} Announcement`
+              )}
+            </Button>
             <Button variant="outline" onClick={resetForm}>
               Cancel
             </Button>
@@ -266,6 +302,13 @@ export default function AnnouncementsManager() {
           <p className="text-muted">No announcements yet. Create one to get started.</p>
         </Card>
       )}
+
+      <ImageCrop
+        imageSrc={imagePreview || ''}
+        onCropComplete={handleCropComplete}
+        onClose={() => setShowCropDialog(false)}
+        open={showCropDialog}
+      />
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { supabase } from "@/lib/supabase/client"
+import { loadData } from "@/lib/storage"
 
 export interface Message {
   id: string
@@ -26,13 +27,54 @@ export default function MessagesManager() {
   const fetchMessages = async () => {
     try {
       setLoading(true)
+      
+      // Try to fetch from Supabase first
       const { data, error } = await supabase
         .from('messages')
         .select('*')
         .order('created_at', { ascending: false })
       
-      if (error) throw error
-      setMessages(data || [])
+      let allMessages: Message[] = []
+      
+      if (error) {
+        console.error('Error fetching from Supabase:', error)
+        // Fallback to localStorage
+        const localStorageMessages = loadData("sccContactMessages", [])
+        allMessages = localStorageMessages.map((msg: any) => ({
+          id: msg.id,
+          name: msg.name,
+          email: msg.email,
+          subject: msg.subject,
+          message: msg.message,
+          created_at: msg.date || new Date().toISOString(),
+          is_read: msg.is_read || false
+        }))
+      } else {
+        allMessages = data || []
+        // Also check localStorage for any additional messages
+        const localStorageMessages = loadData("sccContactMessages", [])
+        if (localStorageMessages.length > 0) {
+          const formattedLocalMessages = localStorageMessages.map((msg: any) => ({
+            id: msg.id,
+            name: msg.name,
+            email: msg.email,
+            subject: msg.subject,
+            message: msg.message,
+            created_at: msg.date || new Date().toISOString(),
+            is_read: msg.is_read || false
+          }))
+          // Combine and remove duplicates
+          const combined = [...allMessages, ...formattedLocalMessages]
+          const unique = combined.filter((msg, index, self) => 
+            index === self.findIndex((m) => m.id === msg.id)
+          )
+          allMessages = unique.sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          )
+        }
+      }
+      
+      setMessages(allMessages)
     } catch (err) {
       console.error('Error fetching messages:', err)
       setError('Failed to load messages. Please try again.')

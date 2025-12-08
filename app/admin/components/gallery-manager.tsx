@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { fileToBase64 } from "@/lib/storage"
+import { ImageCrop } from "@/components/image-crop"
 import { 
   fetchGalleryImages, 
   createGalleryImage, 
@@ -21,6 +22,9 @@ export default function GalleryManager() {
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [showCropDialog, setShowCropDialog] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     title: "",
     image_file: null as File | null,
