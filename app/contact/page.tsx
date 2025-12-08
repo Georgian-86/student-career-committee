@@ -84,8 +84,8 @@ export default function Contact() {
                 <Mail className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
                 <div>
                   <h3 className="font-semibold mb-1">Email</h3>
-                  <a href="mailto:scc@scse.lpu.in" className="text-muted hover:text-primary transition-colors">
-                    scc@scse.lpu.in
+                  <a href="mailto:optimus4586prime@gmail.com" className="text-muted hover:text-primary transition-colors">
+                    optimus4586prime@gmail.com
                   </a>
                 </div>
               </div>
@@ -93,8 +93,8 @@ export default function Contact() {
                 <Phone className="w-6 h-6 text-accent flex-shrink-0 mt-1" />
                 <div>
                   <h3 className="font-semibold mb-1">Phone</h3>
-                  <a href="tel:+91-XXXXX-XXXXX" className="text-muted hover:text-primary transition-colors">
-                    +91 XXXXX XXXXX
+                  <a href="tel:+91-89502 14195" className="text-muted hover:text-primary transition-colors">
+                    +91 89502 14195
                   </a>
                 </div>
               </div>
@@ -115,9 +115,9 @@ export default function Contact() {
               <h3 className="font-bold mb-4">Follow Us</h3>
               <div className="flex gap-4">
                 {[
-                  { name: "LinkedIn", url: "https://linkedin.com" },
-                  { name: "Instagram", url: "https://instagram.com" },
-                  { name: "Twitter", url: "https://twitter.com" },
+                  { name: "LinkedIn", url: "https://www.linkedin.com/in/golukumar15/" },
+                  { name: "Instagram", url: "https://www.instagram.com/georgian_prime86/" },
+                  { name: "Twitter", url: "https://x.com/GoluKumar658755" },
                 ].map((social) => (
                   <a
                     key={social.name}

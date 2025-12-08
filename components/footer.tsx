@@ -66,16 +66,38 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold mb-4 text-foreground">Contact</h4>
             <p className="text-sm text-muted group hover:text-primary transition-colors">
-              Email: scc@scse.lpu.in
+              Email: optimus4586prime@gmail.com
               <br />
-              Phone: +91 XXXXX XXXXX
+              Phone: +91 89502 14195
             </p>
           </div>
         </div>
         <div className="border-t border-border pt-8">
-          <p className="text-center text-sm text-muted hover:text-foreground transition-colors">
-            © 2025 Student Career Committee, SCSE LPU. All rights reserved.
-          </p>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <p className="text-sm text-muted hover:text-foreground transition-colors">
+              © 2025 Student Career Committee, SCSE LPU. All rights reserved.
+            </p>
+            <div className="text-sm text-muted hover:text-foreground transition-colors">
+              <span className="font-medium">Built with ❤️ by</span>
+              <a 
+                href="https://www.linkedin.com/in/golukumar15/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-primary hover:text-accent transition-colors ml-1"
+              >
+                Golu Kumar
+              </a>
+              <span className="mx-2">&</span>
+              <a 
+                href="https://www.linkedin.com/in/medha-jha810/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-primary hover:text-accent transition-colors"
+              >
+                Medha Jha
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </footer>
