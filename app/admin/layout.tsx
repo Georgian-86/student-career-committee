@@ -1,5 +1,5 @@
 import type React from "react"
-import { AuthProvider } from "@/components/AuthProvider"
+import { AuthProvider } from "./auth-context"
 
 export default function AdminLayout({
   children,

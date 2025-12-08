@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/components/AuthProvider"
+import { useAuth } from "./auth-context"
 import { supabase } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import TeamManager from "./components/team-manager"
@@ -14,7 +14,7 @@ import ProjectsManager from "./components/projects-manager"
 import AboutManager from "./components/about-manager"
 
 export default function AdminDashboard() {
-  const { user, loading } = useAuth()
+  const { user, loading, logout } = useAuth()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("team")
   const [isRedirecting, setIsRedirecting] = useState(false)
@@ -42,8 +42,7 @@ export default function AdminDashboard() {
   }
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push("/login")
+    await logout()
   }
 
   const tabs = [
